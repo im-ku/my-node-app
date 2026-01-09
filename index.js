@@ -1,59 +1,50 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// מאפשר לשרת לקרוא נתונים שנשלחים מטפסים
+// התחברות למסד הנתונים באמצעות המשתנה שהגדרת ב-Render
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log('מחובר ל-MongoDB בהצלחה!'))
+  .catch(err => console.error('שגיאת חיבור:', err));
+
+// הגדרת מבנה הנתונים (משימה)
+const Task = mongoose.model('Task', { text: String });
+
 app.use(express.urlencoded({ extended: true }));
 
-let tasks = ["ללמוד Node.js", "להעלות אפליקציה לענן"];
-
-app.get('/', (req, res) => {
-  let taskList = tasks.map((task, index) => 
-    `<li>${task} <a href="/delete/${index}" style="color:red; text-decoration:none;">✖</a></li>`
+app.get('/', async (req, res) => {
+  const tasks = await Task.find();
+  let taskList = tasks.map((t) => 
+    `<li>${t.text} <a href="/delete/${t._id}" style="color:red; margin-right:10px; text-decoration:none;">✖</a></li>`
   ).join('');
 
   res.send(`
-    <!DOCTYPE html>
     <html dir="rtl">
-    <head>
-      <meta charset="UTF-8">
-      <title>לוח המשימות שלי</title>
-      <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; padding-top: 50px; }
-        .container { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 350px; }
-        h2 { color: #333; text-align: center; }
-        ul { list-style: none; padding: 0; }
-        li { background: #fff; border-bottom: 1px solid #eee; padding: 10px; display: flex; justify-content: space-between; }
-        input[type="text"] { width: 70%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
-        button { padding: 8px 15px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <h2>המשימות שלי</h2>
-        <form action="/add" method="POST">
-          <input type="text" name="newTask" placeholder="משימה חדשה..." required>
-          <button type="submit">הוסף</button>
+    <head><meta charset="UTF-8"><title>משימות בענן</title></head>
+    <body style="font-family: sans-serif; background: #eef2f3; padding: 50px; display: flex; justify-content: center;">
+      <div style="background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 350px;">
+        <h2 style="text-align: center; color: #333;">לוח המשימות הקבוע שלי</h2>
+        <form action="/add" method="POST" style="display: flex; gap: 10px;">
+          <input type="text" name="newTask" placeholder="מה יש לעשות?" required style="flex-grow: 1; padding: 8px;">
+          <button type="submit" style="background: #28a745; color: white; border: none; padding: 8px 15px; cursor: pointer; border-radius: 5px;">הוסף</button>
         </form>
-        <ul>${taskList}</ul>
+        <ul style="list-style: none; padding: 0; margin-top: 20px;">${taskList}</ul>
       </div>
     </body>
     </html>
   `);
 });
 
-// נתיב להוספת משימה
-app.post('/add', (req, res) => {
-  tasks.push(req.body.newTask);
+app.post('/add', async (req, res) => {
+  const task = new Task({ text: req.body.newTask });
+  await task.save();
   res.redirect('/');
 });
 
-// נתיב למחיקת משימה
-app.get('/delete/:id', (req, res) => {
-  tasks.splice(req.params.id, 1);
+app.get('/delete/:id', async (req, res) => {
+  await Task.findByIdAndDelete(req.params.id);
   res.redirect('/');
 });
 
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
-});
+app.listen(port, () => console.log(`Server started on port ${port}`));
